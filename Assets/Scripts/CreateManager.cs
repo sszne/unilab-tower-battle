@@ -7,26 +7,27 @@ using System.Linq;
 using System.Threading;
 using UnityEngine.SceneManagement;
 using UnityGoogleDrive;
+using UnityEngine.UIElements;
 
 
 public class CreateManager : MonoBehaviour
 {
     private float _repeatSpan;    //繰り返す間隔
     private float _timeElapsed;　 //経過時間
+    float speed = 3.0f;
     private GameObject obj;
-    public List<GameObject> people;//どうぶつ取得配列
+    public List<GameObject> animals;//どうぶつ取得配列
     public bool isFall;
     int file_length;
-    UnityGoogleDrive.Data.FileList stateFileList;
-    List<string> fileIds = new List<string>();
     List<string> statefileIds = new List<string>();
     public float pivotHeight = 3;//生成位置の基準
     public Camera mainCamera;//カメラ取得用変数
     public GameObject cameracontroller;
     private const string folderId = "1kuN14vh4dfLBFFqew22rCdBZ1vRc2mou";
-    // Start is called before the first frame update
+    
     void Init()
     {
+        //StartCoroutine(AboutGoogleDrive());
         StartCoroutine(CompareGoogleDriveImages());
     }
 
@@ -41,9 +42,11 @@ public class CreateManager : MonoBehaviour
 
     void Update()
     {
-        //if (CheckGameOver(people)){
-        //  SceneManager.LoadScene ("GameOver");
-        //}
+        if (CheckGameOver(animals))
+        {
+            SceneManager.LoadScene("GameOver");
+        }
+
         if (CheckMove(Animal.isMoves))
         {
             return;//移動中なら処理はここまで
@@ -52,27 +55,23 @@ public class CreateManager : MonoBehaviour
 
         if (_timeElapsed >= _repeatSpan)
         {
-
+            if (animals.Count != 0)
+            {
+                ScoreScript.Score = GetAnimalsHighestPosition(animals);
+            }
             StartCoroutine(CreateGoogleDriveImages());
             _timeElapsed = 0;   //経過時間をリセットする
         }
-        
-        /*Vector2 v = new Vector2(mainCamera.ScreenToWorldPoint(Input.mousePosition).x, pivotHeight);
 
-        if (Input.GetMouseButtonUp(0))//もし（マウス左クリックが離されたら）
-        {
-            if (!RotateButton.onButtonDown)//ボタンをクリックしていたら反応させない
-            {
-                obj.transform.position = v;
-                obj.GetComponent<Rigidbody2D>().isKinematic = false;//――――物理挙動・オン
-                isFall = true;//落ちて、どうぞ
-            }
-            RotateButton.onButtonDown = false;//マウスが上がったらボタンも離れたと思う
-        }
-        else if (Input.GetMouseButton(0))//ボタンが押されている間
-        {
-            obj.transform.position = v;
-        }*/
+        RotateAnimal();
+        MoveAnimal();
+        FallAnimal();
+    }
+
+
+    IEnumerator AboutGoogleDrive()
+    {
+        yield return GoogleDriveAbout.Get().Send();
     }
 
     IEnumerator CompareGoogleDriveImages()
@@ -110,7 +109,7 @@ public class CreateManager : MonoBehaviour
                 {
                     if (statefileIds.Contains(file.Id))
                     {
-                        Debug.Log(file.Id);
+                        //Debug.Log(file.Id);
                     }
                     else
                     {
@@ -120,9 +119,10 @@ public class CreateManager : MonoBehaviour
                             byte[] bytes = DLFile.Content;
                             Texture2D texture = new Texture2D(2, 2);
                             texture.LoadImage(bytes);
+                            
                             Rect rect = new Rect(0, 0, texture.width, texture.height);
                             Vector2 pivot = new Vector2(0.5f, 0.5f); // 中央をピボットとする
-                            float pixelsPerUnit = 100.0f;
+                            float pixelsPerUnit = 1000.0f;
 
                             Sprite img = Sprite.Create(texture, rect, pivot, pixelsPerUnit);
 
@@ -142,14 +142,6 @@ public class CreateManager : MonoBehaviour
 
     void Create(Sprite img)
     {
-        /*while (CameraController.isCollision)
-        {
-            Debug.Log("collision_start");
-            cameracontroller.transform.Translate(0, 2.0f, 0);
-            mainCamera.transform.Translate(0, 2.0f, 0);//カメラを少し上に移動
-            pivotHeight += 2.0f;//生成位置も少し上に移動
-        Debug.Log("collision_fin");
-        }*/
         if (CameraController.isCollision)
         {
             Debug.Log("collision_start");
@@ -164,11 +156,63 @@ public class CreateManager : MonoBehaviour
         obj.GetComponent<SpriteRenderer>().sprite = img;
         obj.AddComponent<PolygonCollider2D>();
         obj.AddComponent<Rigidbody2D>();
-        //obj.GetComponent<Rigidbody2D>().isKinematic = true;
+        obj.GetComponent<Rigidbody2D>().isKinematic = true;
         obj.AddComponent<Animal>();
         obj.transform.position = new Vector3(0.0f, pivotHeight, 0.0f);
-        people.Add(obj);
+        animals.Add(obj);
     }
+
+    int GetAnimalsHighestPosition(List<GameObject> animals)
+    {
+        List<int> animalHeights = new List<int>();
+        foreach (GameObject animal in animals)
+        {
+            var height = animal.transform.localPosition.y * 100f;
+            var score = (int)Math.Round(height) + 500;
+            animalHeights.Add(score);
+        }
+        return animalHeights.Max();
+    }
+
+    public void RotateAnimal()
+    {
+        if (!isFall)
+        {
+            if (Input.GetKey(KeyCode.Space))
+            {
+                obj.transform.Rotate(0, 0, 1f);
+            }
+        }
+    }
+
+    public void MoveAnimal()
+    {
+        if (!isFall)
+        {
+            if (Input.GetKey("left"))
+            {
+                obj.transform.position = new Vector2(obj.transform.position.x - 0.01f, pivotHeight);
+            }
+            else if (Input.GetKey("right"))
+            {
+                obj.transform.position = new Vector2(obj.transform.position.x + 0.01f, pivotHeight);
+            }
+        }
+    }
+
+    public void FallAnimal()
+    {
+        if (!isFall)
+        {
+            if (Input.GetKey(KeyCode.Return))
+            {
+                obj.GetComponent<Rigidbody2D>().isKinematic = false;
+                isFall = true;
+                Debug.Log("test");
+            }
+        }
+    }
+
 
     /// <summary>
     /// 移動中かチェック
@@ -192,9 +236,9 @@ public class CreateManager : MonoBehaviour
         return false;
     }
 
-    bool CheckGameOver(List<GameObject> people)
+    bool CheckGameOver(List<GameObject> animals)
     {
-        foreach (GameObject b in people)
+        foreach (GameObject b in animals)
         {
             if (b.transform.position.y < -5)
             {
@@ -202,17 +246,5 @@ public class CreateManager : MonoBehaviour
             }
         }
         return false;
-    }
-    
-    /// <summary>
-    /// どうぶつの回転
-    /// ボタンにつけて使います
-    /// </summary>
-    public void RotateAnimal()
-    {
-        if (!isFall)
-        {
-            obj.transform.Rotate(0, 0, -30);//30度ずつ回転
-        }
     }
 }
